@@ -45,16 +45,7 @@ jobs:
         shell: bash
         run: |
           make clean || true
-          set +e
-          make -k package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless > build.log 2>&1
-          rc=$?
-          set -e
-          tail -n 40 build.log
-          # Surface compiler errors as annotations so they show up on the run page.
-          grep -E "error:|fatal error:|undefined symbol|ld: " build.log | head -40 | while IFS= read -r line; do
-            echo "::error::${line}"
-          done
-          exit $rc
+          make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
 
       - name: Verify the package
         shell: bash
@@ -80,28 +71,19 @@ jobs:
         shell: bash
         run: |
           for variant in on off cool; do
-            dir="$RUNNER_TEMP/sample-$variant"
+            echo "==> Testing variant: $variant"
+            dir="${RUNNER_TEMP}/sample-$variant"
             python3 tools/render_sample.py "$dir" "$variant"
-            set +e
-            (cd "$dir" && make -k package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless > build.log 2>&1)
-            rc=$?
-            set -e
-            tail -n 25 "$dir/build.log"
-            grep -E "error:|fatal error:|undefined symbol" "$dir/build.log" | head -30 | while IFS= read -r line; do
-              echo "::error::[$variant] ${line}"
-            done
-            if [ $rc -ne 0 ]; then
-              tail -n 15 "$dir/build.log" | while IFS= read -r line; do echo "::error::[$variant tail] ${line}"; done
-              exit $rc
-            fi
-            ls "$dir/packages"
+            (cd "$dir" && make clean || true)
+            (cd "$dir" && make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless)
+            ls -la "$dir/packages"/*.deb
           done
 
       - name: Collect DEB file
         shell: bash
         run: |
           mkdir -p output_deb
-          find packages -name "*.deb" -exec cp {} output_deb/ \;
+          find packages -name "*.deb" -exec cp {} output_deb/ ;
           ls -la output_deb/
 
       - name: Upload DEB Artifact
@@ -114,11 +96,12 @@ jobs:
       - name: Read package version
         id: ver
         shell: bash
-        run: echo "version=$(grep '^Version:' control | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(grep ^Version: control | awk '{print $2}')" >> "$GITHUB_OUTPUT"
 
       - name: Publish to GitHub Releases
-        if: github.event_name == 'push'
+        if: github.event_name == push
         uses: softprops/action-gh-release@v2
+        continue-on-error: true
         with:
           tag_name: v${{ steps.ver.outputs.version }}
           name: RAE ${{ steps.ver.outputs.version }}
