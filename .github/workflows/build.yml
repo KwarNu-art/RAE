@@ -90,7 +90,10 @@ jobs:
             grep -E "error:|fatal error:|undefined symbol" "$dir/build.log" | head -30 | while IFS= read -r line; do
               echo "::error::[$variant] ${line}"
             done
-            [ $rc -eq 0 ] || exit $rc
+            if [ $rc -ne 0 ]; then
+              tail -n 15 "$dir/build.log" | while IFS= read -r line; do echo "::error::[$variant tail] ${line}"; done
+              exit $rc
+            fi
             ls "$dir/packages"
           done
 
