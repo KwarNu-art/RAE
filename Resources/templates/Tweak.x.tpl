@@ -204,8 +204,10 @@ static void RAEAddTolerance(NSTimer *timer, NSTimeInterval interval, BOOL repeat
         gLinks = [NSHashTable weakObjectsHashTable];
         %init;
 
+#if RAE_THERMAL_GUARD || RAE_MEMORY_TRIM || RAE_BACKGROUND_QUIET
         NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
         NSOperationQueue *main = NSOperationQueue.mainQueue;
+#endif
 
 #if RAE_THERMAL_GUARD
         [center addObserverForName:NSProcessInfoThermalStateDidChangeNotification object:nil queue:main
