@@ -92,7 +92,7 @@
 }
 
 - (void)deleteProject:(NSDictionary *)project {
-    [_projects removeObject:project];
+    [_projects removeObject:(NSMutableDictionary *)project];
     [self save];
 }
 
