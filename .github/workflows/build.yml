@@ -82,7 +82,16 @@ jobs:
           for variant in on off cool; do
             dir="$RUNNER_TEMP/sample-$variant"
             python3 tools/render_sample.py "$dir" "$variant"
-            (cd "$dir" && make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless && ls packages)
+            set +e
+            (cd "$dir" && make -k package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless > build.log 2>&1)
+            rc=$?
+            set -e
+            tail -n 25 "$dir/build.log"
+            grep -E "error:|fatal error:|undefined symbol" "$dir/build.log" | head -30 | while IFS= read -r line; do
+              echo "::error::[$variant] ${line}"
+            done
+            [ $rc -eq 0 ] || exit $rc
+            ls "$dir/packages"
           done
 
       - name: Collect DEB file
