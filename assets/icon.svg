@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2b1a6b"/>
+      <stop offset="0.55" stop-color="#5a4bff"/>
+      <stop offset="1" stop-color="#19c8d6"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.45" r="0.6">
+      <stop offset="0" stop-color="#b9b3ff" stop-opacity="0.65"/>
+      <stop offset="1" stop-color="#b9b3ff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#d9d4ff"/>
+    </linearGradient>
+    <radialGradient id="lens" cx="0.4" cy="0.35" r="0.8">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#7ff3ff" stop-opacity="0.18"/>
+    </radialGradient>
+    <filter id="drop" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="20" stdDeviation="22" flood-color="#150a47" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <circle cx="512" cy="470" r="470" fill="url(#glow)"/>
+  <!-- the app being studied -->
+  <rect x="190" y="170" width="480" height="480" rx="108" fill="url(#tile)" filter="url(#drop)"/>
+  <g stroke="#5a4bff" stroke-width="26" stroke-linecap="round" fill="none" opacity="0.9">
+    <path d="M280 300 H470"/><path d="M280 380 H420"/><path d="M280 460 H500"/>
+  </g>
+  <g stroke="#19c8d6" stroke-width="26" stroke-linecap="round" fill="none">
+    <path d="M280 540 H380"/>
+  </g>
+  <!-- magnifying glass -->
+  <g filter="url(#drop)">
+    <path d="M640 640 L800 800" stroke="#ffd34a" stroke-width="62" stroke-linecap="round"/>
+    <circle cx="560" cy="560" r="170" fill="url(#lens)" stroke="#ffffff" stroke-width="40"/>
+  </g>
+  <!-- what the lens reveals: nodes and links -->
+  <g stroke="#ffffff" stroke-width="12" stroke-linecap="round" opacity="0.95">
+    <path d="M500 520 L570 480 L630 560 L560 620 Z" fill="none"/>
+    <path d="M570 480 L560 620" fill="none"/>
+  </g>
+  <g fill="#ffffff">
+    <circle cx="500" cy="520" r="17"/><circle cx="570" cy="480" r="17"/>
+    <circle cx="630" cy="560" r="17"/><circle cx="560" cy="620" r="17"/>
+  </g>
+  <!-- sparkles -->
+  <g fill="#fff">
+    <path d="M790 210 l12 32 32 12 -32 12 -12 32 -12 -32 -32 -12 32 -12z" opacity="0.95"/>
+    <path d="M180 760 l9 24 24 9 -24 9 -9 24 -9 -24 -24 -9 24 -9z" opacity="0.85"/>
+    <circle cx="860" cy="470" r="8" opacity="0.8"/><circle cx="250" cy="880" r="7" opacity="0.7"/>
+    <circle cx="880" cy="900" r="9" opacity="0.7"/>
+  </g>
+</svg>

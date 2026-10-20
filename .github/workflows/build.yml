@@ -1,0 +1,107 @@
+name: Build RAE
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Build Dependencies
+        shell: bash
+        run: |
+          brew install ldid dpkg
+          echo "$(brew --prefix)/bin" >> "$GITHUB_PATH"
+
+      - name: Install Theos and iOS SDKs
+        shell: bash
+        run: |
+          THEOS_DIR="${RUNNER_TEMP}/theos"
+          rm -rf "$THEOS_DIR"
+          git clone --recursive --depth=1 https://github.com/theos/theos.git "$THEOS_DIR"
+          rm -rf "$THEOS_DIR/sdks"
+          git clone --depth=1 https://github.com/theos/sdks.git "$THEOS_DIR/sdks"
+          echo "THEOS=$THEOS_DIR" >> "$GITHUB_ENV"
+
+      - name: Test the IPA reader and binary inspector
+        shell: bash
+        run: |
+          python3 tests/make_fixture.py /tmp/rae_test.ipa
+          python3 tests/make_fixture.py /tmp/rae_test_enc.ipa enc
+          clang -Wall -Wextra -o /tmp/test_core tests/test_core.c Sources/RAEZip.c Sources/RAEMachO.c -lz
+          /tmp/test_core /tmp/rae_test.ipa /tmp/rae_test_enc.ipa
+
+      - name: Build the RAE app (rootless)
+        shell: bash
+        run: |
+          make clean || true
+          make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
+
+      - name: Verify the package
+        shell: bash
+        run: |
+          set -e
+          rm -rf verify && mkdir -p verify/x verify/ctl
+          deb=$(ls packages/*.deb | head -1)
+          dpkg-deb -x "$deb" verify/x
+          dpkg-deb -e "$deb" verify/ctl
+          grep -q "^Architecture: iphoneos-arm64" verify/ctl/control || { echo "not a rootless package"; exit 1; }
+          app=$(find verify/x -name RAE.app -type d | head -1)
+          test -n "$app" || { echo "RAE.app missing"; exit 1; }
+          test -x "$app/RAE" || { echo "app executable missing"; exit 1; }
+          plutil -lint "$app/Info.plist"
+          ls "$app" | grep -q "AppIcon60x60@3x.png" || { echo "app icon missing"; exit 1; }
+          for t in Tweak.x.tpl Makefile.tpl control.tpl Config.h.tpl Filter.plist.tpl Project-README.md.tpl build.yml.tpl; do
+            find "$app" -name "$t" | grep -q . || { echo "template $t missing from the app"; exit 1; }
+          done
+          file "$app/RAE" || true
+          cat verify/ctl/control
+
+      - name: Prove the generated tweak template compiles (three variants)
+        shell: bash
+        run: |
+          for variant in on off cool; do
+            dir="$RUNNER_TEMP/sample-$variant"
+            python3 tools/render_sample.py "$dir" "$variant"
+            (cd "$dir" && make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless && ls packages)
+          done
+
+      - name: Collect DEB file
+        shell: bash
+        run: |
+          mkdir -p output_deb
+          find packages -name "*.deb" -exec cp {} output_deb/ \;
+          ls -la output_deb/
+
+      - name: Upload DEB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RAE-deb
+          path: output_deb/*.deb
+          if-no-files-found: error
+
+      - name: Read package version
+        id: ver
+        shell: bash
+        run: echo "version=$(grep '^Version:' control | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to GitHub Releases
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: RAE ${{ steps.ver.outputs.version }}
+          body: |
+            RAE app for rootless jailbreaks (Dopamine, palera1n rootless), iOS 15.0 and later, arm64.
+            Install the `.deb` with Sileo, Zebra or Filza, then respring (or run uicache) and open RAE.
+          files: output_deb/*.deb
