@@ -83,7 +83,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p output_deb
-          find packages -name "*.deb" -exec cp {} output_deb/ ;
+          cp packages/*.deb output_deb/ || true
           ls -la output_deb/
 
       - name: Upload DEB Artifact
@@ -96,10 +96,12 @@ jobs:
       - name: Read package version
         id: ver
         shell: bash
-        run: echo "version=$(grep ^Version: control | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        run: |
+          VERSION=$(grep '^Version:' control | cut -d' ' -f2)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Publish to GitHub Releases
-        if: github.event_name == push
+        if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         continue-on-error: true
         with:
