@@ -8,7 +8,7 @@ include $(THEOS)/makefiles/common.mk
 TWEAK_NAME = {{TWEAK}}
 
 {{TWEAK}}_FILES = Tweak.x
-{{TWEAK}}_CFLAGS = -fobjc-arc -Wno-deprecated-declarations -Wno-unused-function
+{{TWEAK}}_CFLAGS = -fobjc-arc -Wno-deprecated-declarations -Wno-unused-function -Wno-unused-variable
 {{TWEAK}}_FRAMEWORKS = UIKit QuartzCore{{EXTRA_FRAMEWORKS}}
 
 include $(THEOS_MAKE_PATH)/tweak.mk
