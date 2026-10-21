@@ -78,7 +78,10 @@
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
-    if (indexPath.section == 0) { indexPath.row == 0 ? [self pickIPA] : [self browseIPAs]; return; }
+    if (indexPath.section == 0) {
+        if (indexPath.row == 0) [self pickIPA]; else [self browseIPAs];
+        return;
+    }
     NSArray *projects = RAEStore.shared.projects;
     if (indexPath.row < (NSInteger)projects.count) {
         [self.navigationController pushViewController:[[RAEProjectController alloc] initWithProject:projects[indexPath.row]] animated:YES];

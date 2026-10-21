@@ -45,7 +45,15 @@ jobs:
         shell: bash
         run: |
           make clean || true
-          make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
+          set +e
+          make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless > build.log 2>&1
+          rc=$?
+          set -e
+          if [ $rc -ne 0 ]; then
+            sed 's/\x1b\[[0-9;]*m//g' build.log | grep -E "error:|undefined|Undefined" | head -12 | while IFS= read -r line; do echo "::error::${line}"; done
+            tail -n 30 build.log
+            exit $rc
+          fi
 
       - name: Verify the package
         shell: bash
