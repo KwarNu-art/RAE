@@ -2,6 +2,7 @@
 
 @implementation RAEStore {
     NSMutableArray<NSMutableDictionary *> *_projects;
+    NSMutableDictionary *_settings;
 }
 
 + (instancetype)shared {
@@ -39,13 +40,30 @@
 
 #pragma mark - Settings
 
+// Settings are saved in a file in this app's own folder (the same place the projects live), because
+// NSUserDefaults is not reliable for jailbroken apps. The file is written at every change.
+- (NSString *)settingsPath {
+    return [[RAEStore supportDirectory] stringByAppendingPathComponent:@"settings.plist"];
+}
+
+- (NSMutableDictionary *)settingsDict {
+    if (!_settings) {
+        _settings = [NSMutableDictionary dictionaryWithContentsOfFile:[self settingsPath]] ?: [NSMutableDictionary dictionary];
+    }
+    return _settings;
+}
+
 - (NSString *)stringForKey:(NSString *)key {
-    NSString *v = [NSUserDefaults.standardUserDefaults stringForKey:key];
+    NSString *v = [self settingsDict][key];
+    if (![v isKindOfClass:NSString.class]) v = [NSUserDefaults.standardUserDefaults stringForKey:key];   // keys saved by version 1.0.0
     return v ?: @"";
 }
 
 - (void)setString:(NSString *)value forKey:(NSString *)key {
-    [NSUserDefaults.standardUserDefaults setObject:[value stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet] forKey:key];
+    NSString *clean = [(value ?: @"") stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    [self settingsDict][key] = clean;
+    [[self settingsDict] writeToFile:[self settingsPath] atomically:YES];
+    [NSUserDefaults.standardUserDefaults setObject:clean forKey:key];
 }
 
 - (NSString *)anthropicKey { return [self stringForKey:@"anthropicKey"]; }
