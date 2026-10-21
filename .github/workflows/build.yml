@@ -70,14 +70,29 @@ jobs:
       - name: Prove the generated tweak template compiles (three variants)
         shell: bash
         run: |
+          failed=0
           for variant in on off cool; do
             echo "==> Testing variant: $variant"
             dir="${RUNNER_TEMP}/sample-$variant"
             python3 tools/render_sample.py "$dir" "$variant"
-            (cd "$dir" && make clean || true)
-            (cd "$dir" && make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless)
-            ls -la "$dir/packages"/*.deb
+            (cd "$dir" && make clean >/dev/null 2>&1 || true)
+            set +e
+            (cd "$dir" && make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless) > "$dir/build.log" 2>&1
+            rc=$?
+            set -e
+            if [ $rc -ne 0 ]; then
+              failed=1
+              echo "---- variant $variant FAILED (exit $rc), last 60 lines:"
+              tail -n 60 "$dir/build.log"
+              # Show the real compiler messages as annotations so they are readable on the run page.
+              grep -E "error|Error|undefined|fatal" "$dir/build.log" | head -15 | while IFS= read -r line; do
+                echo "::error title=template $variant::${line}"
+              done
+            else
+              ls -la "$dir/packages"/*.deb
+            fi
           done
+          exit $failed
 
       - name: Collect DEB file
         shell: bash
