@@ -13,4 +13,13 @@
     return YES;
 }
 
+// "Open in RAE" from Files, Filza or Safari downloads.
+- (BOOL)application:(UIApplication *)app openURL:(NSURL *)url options:(NSDictionary<UIApplicationOpenURLOptionsKey, id> *)options {
+    UINavigationController *nav = (UINavigationController *)self.window.rootViewController;
+    RAEHomeController *home = (RAEHomeController *)nav.viewControllers.firstObject;
+    if (![home isKindOfClass:RAEHomeController.class] || !url.isFileURL) return NO;
+    dispatch_async(dispatch_get_main_queue(), ^{ [home importIPAAtURL:url]; });
+    return YES;
+}
+
 @end
