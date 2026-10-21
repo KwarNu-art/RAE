@@ -174,10 +174,10 @@ typedef NS_ENUM(NSInteger, RAESection) { RAESectionApp, RAESectionReports, RAESe
 - (void)makeReport {
     RAEStore *store = RAEStore.shared;
     if (!store.anthropicKey.length) {
-        [self rae_alert:@"API key needed" message:@"Add your Anthropic API key in Settings (the gear on the first screen), then try again."];
+        [self rae_alert:@"AI key needed" message:@"Choose an AI and add its key in Settings (the gear on the first screen). Gemini and Groq have free keys."];
         return;
     }
-    UIAlertController *box = [self rae_showBusy:@"Claude is reading the analysis. This takes up to a minute."];
+    UIAlertController *box = [self rae_showBusy:@"The AI is reading the analysis. This takes up to a minute."];
     NSDictionary *snapshot = [_project copy];
     NSString *key = store.anthropicKey, *model = store.model;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{

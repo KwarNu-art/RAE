@@ -125,7 +125,8 @@
     });
 }
 
-// Copies the file into this app's temp folder (the original is never touched), then analyses the copy.
+// Reads the IPA where it is. Only if it cannot be read there, a copy is made in a folder this app can write to.
+// The original file is never changed or deleted.
 - (void)importIPAAtURL:(NSURL *)url {
     [self.navigationController popToRootViewControllerAnimated:NO];
     UIViewController *top = self;
@@ -135,41 +136,47 @@
     BOOL scoped = [url startAccessingSecurityScopedResource];
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSFileManager *fm = NSFileManager.defaultManager;
-        NSString *dir = [NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString];
-        [fm createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:NULL];
-        NSString *name = url.lastPathComponent.length ? url.lastPathComponent : @"app.ipa";
-        NSString *path = [dir stringByAppendingPathComponent:name];
+        NSString *path = url.path;
+        NSString *copyDir = nil;
+        NSError *error = nil;
+        BOOL ready = [fm isReadableFileAtPath:path];
 
-        __block NSError *copyError = nil;
-        NSError *coordError = nil;
-        __block BOOL copied = NO;
-        [[[NSFileCoordinator alloc] initWithFilePresenter:nil]
-            coordinateReadingItemAtURL:url options:NSFileCoordinatorReadingWithoutChanges error:&coordError
-                            byAccessor:^(NSURL *readURL) {
-            copied = [fm copyItemAtURL:readURL toURL:[NSURL fileURLWithPath:path] error:&copyError];
-        }];
-        if (!copied && [fm fileExistsAtPath:url.path]) {   // last try, plain copy
-            copyError = nil;
-            copied = [fm copyItemAtPath:url.path toPath:path error:&copyError];
+        if (!ready) {
+            NSString *name = url.lastPathComponent.length ? url.lastPathComponent : @"app.ipa";
+            for (NSString *base in @[RAEStore.supportDirectory, NSTemporaryDirectory(), @"/var/tmp", @"/var/mobile/Documents"]) {
+                NSString *dir = [base stringByAppendingPathComponent:[@"import-" stringByAppendingString:NSUUID.UUID.UUIDString]];
+                if (![fm createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:NULL]) continue;
+                NSString *dest = [dir stringByAppendingPathComponent:name];
+                __block NSError *copyError = nil;
+                __block BOOL copied = NO;
+                NSError *coordError = nil;
+                [[[NSFileCoordinator alloc] initWithFilePresenter:nil]
+                    coordinateReadingItemAtURL:url options:NSFileCoordinatorReadingWithoutChanges error:&coordError
+                                    byAccessor:^(NSURL *readURL) {
+                    copied = [fm copyItemAtURL:readURL toURL:[NSURL fileURLWithPath:dest] error:&copyError];
+                }];
+                if (copied) { path = dest; copyDir = dir; ready = YES; break; }
+                error = copyError ?: coordError;
+                [fm removeItemAtPath:dir error:NULL];
+            }
         }
-        if (scoped) [url stopAccessingSecurityScopedResource];
 
-        NSError *error = copyError ?: coordError;
         NSDictionary *analysis = nil;
         NSString *facts = nil;
-        if (copied) {
+        if (ready) {
             error = nil;
             analysis = [RAEAnalyzer analyzeIPAAtPath:path progress:^(NSString *step) {
                 dispatch_async(dispatch_get_main_queue(), ^{ box.message = [step stringByAppendingString:@"\n\n"]; });
             } error:&error];
             facts = analysis ? [RAEAnalyzer factsReportForAnalysis:analysis] : nil;
         }
-        [fm removeItemAtPath:dir error:NULL];   // only the copy is deleted
+        if (copyDir) [fm removeItemAtPath:copyDir error:NULL];   // only our own copy is deleted
+        if (scoped) [url stopAccessingSecurityScopedResource];
 
         dispatch_async(dispatch_get_main_queue(), ^{
             [top rae_hideBusy:box completion:^{
                 if (!analysis) {
-                    [self rae_alert:@"Could not open this file" message:error.localizedDescription ?: @"Unknown problem."];
+                    [self rae_alert:@"Could not open this file" message:error.localizedDescription ?: @"RAE cannot read this file. Try \"Find IPAs on this iPhone\" or move the IPA to Documents."];
                     return;
                 }
                 NSMutableDictionary *project = [RAEStore.shared addProjectForAnalysis:analysis facts:facts];

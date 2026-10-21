@@ -1,8 +1,8 @@
 Package: com.kwarnu.rae
 Name: RAE
-Version: 1.0.3
+Version: 1.1.0
 Architecture: iphoneos-arm64
-Description: Reverse engineer a decrypted IPA with AI and build a performance dylib for it.
+Description: Reverse engineer a decrypted IPA with a free or paid AI and build a performance dylib for it.
 Maintainer: KwarNu <kwarnu64@gmail.com>
 Author: KwarNu
 Section: Utilities

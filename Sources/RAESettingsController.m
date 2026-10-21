@@ -32,6 +32,7 @@
         switch (tag.integerValue) {
             case 0: s.anthropicKey = text; break;
             case 1: s.model = text; break;
+            case 2: s.baseURL = text; break;
             case 10: s.githubToken = text; break;
             case 11: s.buildsRepo = text; break;
         }
@@ -63,8 +64,8 @@ static NSString *Status(NSString *value, BOOL showEnd) {
     [self.view endEditing:YES];
     [self saveAll];
     RAEStore *s = RAEStore.shared;
-    NSString *message = [NSString stringWithFormat:@"Claude API key: %@\nGitHub token: %@\nModel: %@\nRepository: %@\n\nThey stay saved when you close and reopen RAE.",
-                         Status(s.anthropicKey, YES), Status(s.githubToken, YES), s.model,
+    NSString *message = [NSString stringWithFormat:@"AI (%@) key: %@\nGitHub token: %@\nModel: %@\nRepository: %@\n\nThey stay saved when you close and reopen RAE.",
+                         s.providerInfo[@"name"], Status(s.anthropicKey, YES), Status(s.githubToken, YES), s.model,
                          s.buildsRepo.length ? s.buildsRepo : @"automatic (RAE-Builds)"];
     [self rae_alert:@"Saved ✓" message:message];
 }
@@ -72,16 +73,32 @@ static NSString *Status(NSString *value, BOOL showEnd) {
 #pragma mark - Table
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView { return 3; }
-- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section { return section == 2 ? 1 : 2; }
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section { return section == 2 ? 1 : section == 0 ? 4 : 2; }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
-    return section == 0 ? @"AI report (Claude)" : section == 1 ? @"Online build (GitHub)" : nil;
+    return section == 0 ? @"AI report" : section == 1 ? @"Online build (GitHub)" : nil;
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
-    if (section == 0) return @"Your own Anthropic API key (console.anthropic.com). Tap Paste, or paste into the box. If paste does not work: in Notes type rae://save?claude=YOUR_KEY and tap the link. It is only sent to api.anthropic.com. RAE sends the analysis text of the IPA, never the IPA itself.";
+    if (section == 0) return @"Pick an AI and add its key. Free keys: Google Gemini (aistudio.google.com/apikey), Groq (console.groq.com/keys), OpenRouter (openrouter.ai/keys, use models ending in :free). Free plans have limits, and model names change, so you can type any model name. Each AI keeps its own key. Claude (paid) needs a paid Anthropic key. RAE sends the analysis text of the IPA, never the IPA itself. If paste does not work: in Notes type rae://save?claude=YOUR_KEY and tap the link.";
     if (section == 1) return @"A GitHub token with the \"repo\" and \"workflow\" permissions (github.com > Settings > Developer settings > Tokens). RAE creates a public repository for your builds if it does not exist; leave the name empty to use <you>/RAE-Builds.";
     return @"Everything is also saved automatically as you type. It is stored in this app's own folder on your phone only.";
+}
+
+- (void)chooseProvider {
+    [self saveAll];
+    UIAlertController *sheet = [UIAlertController alertControllerWithTitle:@"Choose an AI" message:nil preferredStyle:UIAlertControllerStyleActionSheet];
+    for (NSDictionary *d in RAEStore.providers) {
+        [sheet addAction:[UIAlertAction actionWithTitle:d[@"name"] style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
+            RAEStore.shared.provider = d[@"id"];
+            [self.fields removeAllObjects];
+            [self.tableView reloadData];
+        }]];
+    }
+    [sheet addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    sheet.popoverPresentationController.sourceView = self.view;
+    sheet.popoverPresentationController.sourceRect = CGRectMake(self.view.bounds.size.width / 2, 120, 1, 1);
+    [self presentViewController:sheet animated:YES completion:nil];
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -93,19 +110,28 @@ static NSString *Status(NSString *value, BOOL showEnd) {
         cell.textLabel.font = [UIFont systemFontOfSize:17 weight:UIFontWeightBold];
         return cell;
     }
+    if (indexPath.section == 0 && indexPath.row == 0) {
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:nil];
+        cell.textLabel.text = @"AI";
+        cell.detailTextLabel.text = RAEStore.shared.providerInfo[@"name"];
+        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+        return cell;
+    }
     cell.selectionStyle = UITableViewCellSelectionStyleNone;
-    NSArray *titles = @[@[@"API key", @"Model"], @[@"Token", @"Repository"]];
-    NSArray *placeholders = @[@[@"sk-ant-…", @"claude-sonnet-5-5"], @[@"ghp_… or github_pat_…", @"owner/RAE-Builds (optional)"]];
-    NSInteger tag = indexPath.section * 10 + indexPath.row;
+    NSInteger tag = indexPath.section == 0 ? indexPath.row - 1 : 10 + indexPath.row;
+    NSDictionary *titleFor = @{@0: @"API key", @1: @"Model", @2: @"Base URL", @10: @"Token", @11: @"Repository"};
+    NSDictionary *placeholderFor = @{@0: @"paste the AI key", @1: RAEStore.shared.providerInfo[@"model"] ?: @"model name",
+                                     @2: RAEStore.shared.providerInfo[@"url"] ?: @"https://…/v1",
+                                     @10: @"ghp_… or github_pat_…", @11: @"owner/RAE-Builds (optional)"};
 
     UILabel *label = [[UILabel alloc] init];
-    label.text = titles[indexPath.section][indexPath.row];
+    label.text = titleFor[@(tag)];
     label.font = [UIFont systemFontOfSize:16];
     label.translatesAutoresizingMaskIntoConstraints = NO;
 
     UITextField *field = [[UITextField alloc] init];
     field.translatesAutoresizingMaskIntoConstraints = NO;
-    field.placeholder = placeholders[indexPath.section][indexPath.row];
+    field.placeholder = placeholderFor[@(tag)];
     field.autocapitalizationType = UITextAutocapitalizationTypeNone;
     field.autocorrectionType = UITextAutocorrectionTypeNo;
     field.spellCheckingType = UITextSpellCheckingTypeNo;
@@ -121,6 +147,7 @@ static NSString *Status(NSString *value, BOOL showEnd) {
     switch (tag) {
         case 0: field.text = s.anthropicKey; break;      // shown in plain text so you can see that it is there
         case 1: field.text = s.model; break;
+        case 2: field.text = s.baseURL; break;
         case 10: field.text = s.githubToken; break;
         case 11: field.text = s.buildsRepo; break;
     }
@@ -161,6 +188,7 @@ static NSString *Status(NSString *value, BOOL showEnd) {
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     if (indexPath.section == 2) [self saveTapped];
+    else if (indexPath.section == 0 && indexPath.row == 0) [self chooseProvider];
 }
 
 - (void)textFieldDidEndEditing:(UITextField *)field { [self saveAll]; }

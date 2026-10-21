@@ -7,8 +7,13 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (instancetype)shared;
 
-@property (nonatomic, copy) NSString *anthropicKey;
+// The AI provider (Claude, Gemini, Groq, OpenRouter or a custom OpenAI-compatible one). Each keeps its own key, model and address.
+@property (nonatomic, copy) NSString *provider;      // provider id
+@property (nonatomic, copy) NSString *anthropicKey;  // key of the selected provider (name kept from version 1)
 @property (nonatomic, copy) NSString *model;
+@property (nonatomic, copy) NSString *baseURL;
++ (NSArray<NSDictionary *> *)providers;               // @{id, name, url, model, kind}
+- (NSDictionary *)providerInfo;
 @property (nonatomic, copy) NSString *githubToken;
 @property (nonatomic, copy) NSString *buildsRepo;   // "owner/name", empty = choose automatically
 

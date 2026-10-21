@@ -66,10 +66,44 @@
     [NSUserDefaults.standardUserDefaults setObject:clean forKey:key];
 }
 
-- (NSString *)anthropicKey { return [self stringForKey:@"anthropicKey"]; }
-- (void)setAnthropicKey:(NSString *)v { [self setString:v forKey:@"anthropicKey"]; }
-- (NSString *)model { NSString *m = [self stringForKey:@"model"]; return m.length ? m : @"claude-sonnet-5-5"; }
-- (void)setModel:(NSString *)v { [self setString:v forKey:@"model"]; }
++ (NSArray<NSDictionary *> *)providers {
+    return @[
+        @{@"id": @"gemini", @"name": @"Google Gemini (free tier)", @"kind": @"openai",
+          @"url": @"https://generativelanguage.googleapis.com/v1beta/openai", @"model": @"gemini-2.0-flash"},
+        @{@"id": @"groq", @"name": @"Groq (free tier)", @"kind": @"openai",
+          @"url": @"https://api.groq.com/openai/v1", @"model": @"llama-3.3-70b-versatile"},
+        @{@"id": @"openrouter", @"name": @"OpenRouter (free models)", @"kind": @"openai",
+          @"url": @"https://openrouter.ai/api/v1", @"model": @"meta-llama/llama-3.3-70b-instruct:free"},
+        @{@"id": @"custom", @"name": @"Custom (any OpenAI-compatible)", @"kind": @"openai", @"url": @"", @"model": @""},
+        @{@"id": @"anthropic", @"name": @"Claude (paid)", @"kind": @"anthropic",
+          @"url": @"https://api.anthropic.com", @"model": @"claude-sonnet-5-5"},
+    ];
+}
+
+- (NSString *)provider {
+    NSString *p = [self stringForKey:@"provider"];
+    for (NSDictionary *d in RAEStore.providers) if ([d[@"id"] isEqualToString:p]) return p;
+    return @"gemini";   // a free one by default
+}
+- (void)setProvider:(NSString *)v { [self setString:v forKey:@"provider"]; }
+
+- (NSDictionary *)providerInfo {
+    for (NSDictionary *d in RAEStore.providers) if ([d[@"id"] isEqualToString:self.provider]) return d;
+    return RAEStore.providers.firstObject;
+}
+
+- (NSString *)keyFor:(NSString *)suffix { return [NSString stringWithFormat:@"ai.%@.%@", self.provider, suffix]; }
+
+- (NSString *)anthropicKey {
+    NSString *v = [self stringForKey:[self keyFor:@"key"]];
+    if (!v.length && [self.provider isEqualToString:@"anthropic"]) v = [self stringForKey:@"anthropicKey"];   // saved by older versions
+    return v;
+}
+- (void)setAnthropicKey:(NSString *)v { [self setString:v forKey:[self keyFor:@"key"]]; }
+- (NSString *)model { NSString *m = [self stringForKey:[self keyFor:@"model"]]; return m.length ? m : self.providerInfo[@"model"]; }
+- (void)setModel:(NSString *)v { [self setString:v forKey:[self keyFor:@"model"]]; }
+- (NSString *)baseURL { NSString *u = [self stringForKey:[self keyFor:@"url"]]; return u.length ? u : self.providerInfo[@"url"]; }
+- (void)setBaseURL:(NSString *)v { [self setString:v forKey:[self keyFor:@"url"]]; }
 - (NSString *)githubToken { return [self stringForKey:@"githubToken"]; }
 - (void)setGithubToken:(NSString *)v { [self setString:v forKey:@"githubToken"]; }
 - (NSString *)buildsRepo { return [self stringForKey:@"buildsRepo"]; }

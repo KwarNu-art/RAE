@@ -1,5 +1,6 @@
 #import "RAEClaude.h"
 #import "RAENet.h"
+#import "RAEStore.h"
 
 @implementation RAEClaude
 
@@ -10,7 +11,7 @@ static NSError *RAEClaudeError(NSString *message) {
 + (NSString *)reportForProject:(NSDictionary *)project apiKey:(NSString *)apiKey model:(NSString *)model
               suggestedProfile:(NSDictionary **)suggestedProfile error:(NSError **)error {
     if (!apiKey.length) {
-        if (error) *error = RAEClaudeError(@"Add your Anthropic API key in Settings first.");
+        if (error) *error = RAEClaudeError(@"Add your AI key in Settings first.");
         return nil;
     }
     NSString *facts = project[@"facts"] ?: @"";
@@ -34,39 +35,70 @@ static NSError *RAEClaudeError(NSString *message) {
     NSString *user = [NSString stringWithFormat:@"Static analysis of the app:\n\n%@\n\nCurrent suggested profile (from simple rules): %@",
                       facts, project[@"profile"] ?: @{}];
 
-    NSDictionary *body = @{
-        @"model": model.length ? model : @"claude-sonnet-5-5",
-        @"max_tokens": @4000,
-        @"system": system,
-        @"messages": @[@{@"role": @"user", @"content": user}],
-    };
-    NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:@"https://api.anthropic.com/v1/messages"]];
+    // Claude's own API, or any OpenAI-compatible one (Gemini, Groq, OpenRouter and others, many with a free tier).
+    RAEStore *store = RAEStore.shared;
+    BOOL claude = [store.providerInfo[@"kind"] isEqualToString:@"anthropic"];
+    NSString *base = [store.baseURL stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    while ([base hasSuffix:@"/"]) base = [base substringToIndex:base.length - 1];
+    if (!base.length) {
+        if (error) *error = RAEClaudeError(@"Add the address (Base URL) of your AI provider in Settings.");
+        return nil;
+    }
+    if (!model.length) {
+        if (error) *error = RAEClaudeError(@"Add the model name in Settings.");
+        return nil;
+    }
+
+    NSMutableURLRequest *req;
+    if (claude) {
+        NSDictionary *body = @{@"model": model, @"max_tokens": @4000, @"system": system,
+                               @"messages": @[@{@"role": @"user", @"content": user}]};
+        req = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:[base stringByAppendingString:@"/v1/messages"]]];
+        [req setValue:apiKey forHTTPHeaderField:@"x-api-key"];
+        [req setValue:@"2023-06-01" forHTTPHeaderField:@"anthropic-version"];
+        req.HTTPBody = [NSJSONSerialization dataWithJSONObject:body options:0 error:NULL];
+    } else {
+        NSDictionary *body = @{@"model": model, @"max_tokens": @4000, @"temperature": @0.3,
+                               @"messages": @[@{@"role": @"system", @"content": system},
+                                              @{@"role": @"user", @"content": user}]};
+        req = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:[base stringByAppendingString:@"/chat/completions"]]];
+        [req setValue:[@"Bearer " stringByAppendingString:apiKey] forHTTPHeaderField:@"Authorization"];
+        req.HTTPBody = [NSJSONSerialization dataWithJSONObject:body options:0 error:NULL];
+    }
+    if (!req.URL) {
+        if (error) *error = RAEClaudeError(@"The Base URL is not a valid address.");
+        return nil;
+    }
     req.HTTPMethod = @"POST";
-    [req setValue:apiKey forHTTPHeaderField:@"x-api-key"];
-    [req setValue:@"2023-06-01" forHTTPHeaderField:@"anthropic-version"];
     [req setValue:@"application/json" forHTTPHeaderField:@"content-type"];
-    req.HTTPBody = [NSJSONSerialization dataWithJSONObject:body options:0 error:NULL];
     req.timeoutInterval = 180;
 
     NSInteger status = 0;
     NSError *netError = nil;
     NSData *data = [RAENet send:req status:&status error:&netError];
     if (!data) {
-        if (error) *error = RAEClaudeError([NSString stringWithFormat:@"Could not reach Claude: %@", netError.localizedDescription ?: @"no response"]);
+        if (error) *error = RAEClaudeError([NSString stringWithFormat:@"Could not reach the AI: %@", netError.localizedDescription ?: @"no response"]);
         return nil;
     }
     NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
     if (status != 200 || ![json isKindOfClass:NSDictionary.class]) {
-        NSString *msg = [json[@"error"] isKindOfClass:NSDictionary.class] ? json[@"error"][@"message"] : nil;
-        if (error) *error = RAEClaudeError([NSString stringWithFormat:@"Claude returned an error (HTTP %ld): %@", (long)status, msg ?: @"unknown"]);
+        id err = [json isKindOfClass:NSDictionary.class] ? json[@"error"] : nil;
+        NSString *msg = [err isKindOfClass:NSDictionary.class] ? err[@"message"] : ([err isKindOfClass:NSString.class] ? err : nil);
+        if (error) *error = RAEClaudeError([NSString stringWithFormat:@"The AI returned an error (HTTP %ld): %@", (long)status, msg ?: @"unknown"]);
         return nil;
     }
     NSMutableString *text = [NSMutableString string];
-    for (NSDictionary *block in json[@"content"]) {
-        if ([block[@"type"] isEqualToString:@"text"] && block[@"text"]) [text appendString:block[@"text"]];
+    if (claude) {
+        for (NSDictionary *block in json[@"content"]) {
+            if ([block[@"type"] isEqualToString:@"text"] && block[@"text"]) [text appendString:block[@"text"]];
+        }
+    } else {
+        NSArray *choices = json[@"choices"];
+        NSDictionary *message = [choices.firstObject isKindOfClass:NSDictionary.class] ? choices.firstObject[@"message"] : nil;
+        if ([message[@"content"] isKindOfClass:NSString.class]) [text appendString:message[@"content"]];
     }
     if (!text.length) {
-        if (error) *error = RAEClaudeError(@"Claude sent an empty answer.");
+        if (error) *error = RAEClaudeError(@"The AI sent an empty answer.");
         return nil;
     }
 

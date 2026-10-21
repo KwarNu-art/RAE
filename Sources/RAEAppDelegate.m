@@ -21,10 +21,15 @@
         NSURLComponents *parts = [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO];
         RAEStore *store = RAEStore.shared;
         NSMutableArray *saved = [NSMutableArray array];
+        for (NSURLQueryItem *item in parts.queryItems) {   // "provider" first, so the key goes to the right AI
+            if ([item.name.lowercaseString isEqualToString:@"provider"]) {
+                for (NSDictionary *d in RAEStore.providers) if ([d[@"id"] isEqualToString:item.value.lowercaseString]) { store.provider = d[@"id"]; [saved addObject:d[@"name"]]; }
+            }
+        }
         for (NSURLQueryItem *item in parts.queryItems) {
             NSString *key = item.name.lowercaseString;
             if (!item.value.length) continue;
-            if ([key isEqualToString:@"claude"] || [key isEqualToString:@"api"] || [key isEqualToString:@"key"]) { store.anthropicKey = item.value; [saved addObject:@"Claude API key"]; }
+            if ([key isEqualToString:@"claude"] || [key isEqualToString:@"api"] || [key isEqualToString:@"key"]) { store.anthropicKey = item.value; [saved addObject:@"AI key"]; }
             else if ([key isEqualToString:@"github"] || [key isEqualToString:@"token"]) { store.githubToken = item.value; [saved addObject:@"GitHub token"]; }
             else if ([key isEqualToString:@"model"]) { store.model = item.value; [saved addObject:@"Model"]; }
             else if ([key isEqualToString:@"repo"]) { store.buildsRepo = item.value; [saved addObject:@"Repository"]; }
