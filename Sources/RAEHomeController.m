@@ -140,7 +140,7 @@
         NSString *name = url.lastPathComponent.length ? url.lastPathComponent : @"app.ipa";
         NSString *path = [dir stringByAppendingPathComponent:name];
 
-        NSError *copyError = nil;
+        __block NSError *copyError = nil;
         NSError *coordError = nil;
         __block BOOL copied = NO;
         [[[NSFileCoordinator alloc] initWithFilePresenter:nil]
