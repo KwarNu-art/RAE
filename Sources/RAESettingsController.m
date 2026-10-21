@@ -44,7 +44,11 @@
     UITextField *field = self.fields[@(button.tag)];
     NSString *text = UIPasteboard.generalPasteboard.string;
     if (!field) return;
-    if (!text.length) { [self rae_alert:@"Nothing to paste" message:@"Copy your key first, then tap Paste."]; return; }
+    if (!text.length) {
+        [self rae_alert:@"Paste is not available"
+                message:@"Either nothing is copied, or this phone does not let RAE read the clipboard.\n\nNo-paste way: open Notes, type\nrae://save?claude=YOUR_KEY&github=YOUR_TOKEN\n(put your real key and token in), then tap that link. RAE opens and saves them."];
+        return;
+    }
     field.text = [text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
     [self saveAll];
 }
@@ -75,7 +79,7 @@ static NSString *Status(NSString *value, BOOL showEnd) {
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
-    if (section == 0) return @"Your own Anthropic API key (console.anthropic.com). Tap Paste, or paste into the box. It is only sent to api.anthropic.com. RAE sends the analysis text of the IPA, never the IPA itself.";
+    if (section == 0) return @"Your own Anthropic API key (console.anthropic.com). Tap Paste, or paste into the box. If paste does not work: in Notes type rae://save?claude=YOUR_KEY and tap the link. It is only sent to api.anthropic.com. RAE sends the analysis text of the IPA, never the IPA itself.";
     if (section == 1) return @"A GitHub token with the \"repo\" and \"workflow\" permissions (github.com > Settings > Developer settings > Tokens). RAE creates a public repository for your builds if it does not exist; leave the name empty to use <you>/RAE-Builds.";
     return @"Everything is also saved automatically as you type. It is stored in this app's own folder on your phone only.";
 }
