@@ -9,6 +9,6 @@ TWEAK_NAME = {{TWEAK}}
 
 {{TWEAK}}_FILES = Tweak.x
 {{TWEAK}}_CFLAGS = -fobjc-arc -Wno-deprecated-declarations -Wno-unused-function -Wno-unused-variable -Wno-undefined-internal
-{{TWEAK}}_FRAMEWORKS = UIKit QuartzCore{{EXTRA_FRAMEWORKS}}
+{{TWEAK}}_FRAMEWORKS = UIKit QuartzCore
 
 include $(THEOS_MAKE_PATH)/tweak.mk

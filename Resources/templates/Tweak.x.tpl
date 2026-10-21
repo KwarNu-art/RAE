@@ -12,9 +12,6 @@
 #import <sys/resource.h>
 #import <os/proc.h>
 #import "Config.h"
-#if RAE_HOOK_MTKVIEW
-#import <MetalKit/MetalKit.h>
-#endif
 
 #ifndef PRIO_DARWIN_PROCESS
 #define PRIO_DARWIN_PROCESS 4
@@ -73,6 +70,10 @@ static CAFrameRateRange RAEAdjustRange(CAFrameRateRange range) {
     return r;
 }
 
+// Logos turns every %hook into code before the C preprocessor runs, so hooks must never sit inside #if.
+// Each feature lives in its own group instead, and %ctor starts only the groups that are switched on.
+%group Frames
+
 %hook CADisplayLink
 
 + (CADisplayLink *)displayLinkWithTarget:(id)target selector:(SEL)selector {
@@ -94,7 +95,11 @@ static CAFrameRateRange RAEAdjustRange(CAFrameRateRange range) {
 
 %end
 
-#if RAE_HOOK_MTKVIEW
+%end
+
+// MetalKit is not linked: if the app uses MTKView the class exists at runtime, otherwise the hook does nothing.
+%group Metal
+
 %hook MTKView
 
 - (void)setPreferredFramesPerSecond:(NSInteger)fps {
@@ -104,7 +109,8 @@ static CAFrameRateRange RAEAdjustRange(CAFrameRateRange range) {
 }
 
 %end
-#endif
+
+%end
 
 // Re-applies the profile to everything that already exists (used when the thermal state changes).
 static void RAERefreshFrameRates(void) {
@@ -172,11 +178,12 @@ static void RAEStopTrimTimer(void) {
 
 #pragma mark - Timers
 
-#if RAE_TIMER_SAVING
 // Gives long repeating timers some slack so the system can run them together with other work.
 static void RAEAddTolerance(NSTimer *timer, NSTimeInterval interval, BOOL repeats) {
     if (timer && repeats && interval >= 1.0 && timer.tolerance < interval * 0.1) timer.tolerance = interval * 0.1;
 }
+
+%group Timers
 
 %hook NSTimer
 
@@ -194,7 +201,8 @@ static void RAEAddTolerance(NSTimer *timer, NSTimeInterval interval, BOOL repeat
 }
 
 %end
-#endif
+
+%end
 
 #pragma mark - Entry point
 
@@ -202,7 +210,15 @@ static void RAEAddTolerance(NSTimer *timer, NSTimeInterval interval, BOOL repeat
     @autoreleasepool {
         if (![NSBundle.mainBundle.bundleIdentifier isEqualToString:RAE_TARGET_BUNDLE]) return;
         gLinks = [NSHashTable weakObjectsHashTable];
-        %init;
+#if RAE_FPS_MODE != 0 || RAE_THERMAL_GUARD
+        %init(Frames);
+#endif
+#if RAE_HOOK_MTKVIEW && (RAE_FPS_MODE != 0 || RAE_THERMAL_GUARD)
+        %init(Metal);
+#endif
+#if RAE_TIMER_SAVING
+        %init(Timers);
+#endif
 
 #if RAE_THERMAL_GUARD || RAE_MEMORY_TRIM || RAE_BACKGROUND_QUIET
         NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
