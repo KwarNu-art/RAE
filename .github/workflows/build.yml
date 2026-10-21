@@ -85,7 +85,7 @@ jobs:
               echo "---- variant $variant FAILED (exit $rc), last 60 lines:"
               tail -n 60 "$dir/build.log"
               # Show the real compiler messages as annotations so they are readable on the run page.
-              grep -E "error|Error|undefined|fatal" "$dir/build.log" | head -15 | while IFS= read -r line; do
+              grep -E -i -A6 "undefined symbols|error:|fatal" "$dir/build.log" | sed 's/\x1b\[[0-9;]*m//g' | head -24 | while IFS= read -r line; do
                 echo "::error title=template $variant::${line}"
               done
             else
